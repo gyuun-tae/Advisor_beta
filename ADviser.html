@@ -127,6 +127,36 @@
             </div>
         </section>
 
+        <!-- ==================== VIEW: TRAFFIC INPUT ==================== -->
+        <section id="view-traffic-input" class="view-section h-full bg-[#F2F4F6]">
+            <div class="flex-1 overflow-y-auto no-scrollbar pb-24">
+                <!-- Header -->
+                <header class="bg-white px-6 pt-12 pb-6 rounded-b-[32px] shadow-sm mb-6">
+                    <button onclick="navigateTo('channels')" class="p-2 -ml-2 mb-4 text-[#333D4B]">
+                        <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                    </button>
+                    <h1 class="text-2xl font-bold text-[#191F28] mb-2">트래픽 입력</h1>
+                    <p class="text-[#8B95A1] text-sm mt-2">각 채널의 트래픽 데이터를 입력해주세요</p>
+                </header>
+
+                <!-- Traffic Input Sections -->
+                <div class="px-5" id="traffic-input-sections">
+                    <!-- Channel sections will be rendered here by JS -->
+                </div>
+
+                <!-- Continue Button -->
+                <div class="px-5 mt-6 pb-6">
+                    <button 
+                        id="traffic-continue-btn" 
+                        onclick="proceedToDiagnosisFromTraffic()" 
+                        class="w-full bg-[#3182F6] text-white font-bold py-4 rounded-xl text-lg hover:bg-[#286ee6] active:scale-[0.98] transition-all"
+                    >
+                        분석 시작하기
+                    </button>
+                </div>
+            </div>
+        </section>
+
         <!-- ==================== VIEW: DIAGNOSIS (Integrated) ==================== -->
         <section id="view-diagnosis" class="view-section h-full bg-[#F2F4F6]">
             <!-- Sticky Header -->

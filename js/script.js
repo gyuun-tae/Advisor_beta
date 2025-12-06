@@ -14,6 +14,11 @@ function navigateTo(viewId) {
         renderChannelsView();
     }
 
+    // Init Traffic Input if entering
+    if (viewId === 'traffic-input') {
+        renderTrafficInputView();
+    }
+
     // Init Diagnosis if entering for the first time or reset
     if (viewId === 'diagnosis') {
         if(diagnosisState.step === 'idle') {
@@ -29,8 +34,8 @@ function navigateTo(viewId) {
     const activeNav = document.querySelector(`.nav-item[data-target="${viewId}"]`);
     if (activeNav) {
         activeNav.classList.add('active');
-    } else if (viewId === 'diagnosis' || viewId === 'channels') {
-        // If in diagnosis or channels, maybe keep 'home' active or none. Let's keep none for clarity or Home.
+    } else if (viewId === 'diagnosis' || viewId === 'channels' || viewId === 'traffic-input') {
+        // If in diagnosis, channels, or traffic-input, keep none for clarity or Home.
         // Keeping none emphasizes fullscreen mode.
     }
     
@@ -154,9 +159,489 @@ function toggleChannel(channelId) {
 function proceedToDiagnosis() {
     if (selectedChannels.length === 0) return;
     
-    // 선택된 채널 저장 (나중에 진단에 사용 가능)
+    // 선택된 채널 저장 (이미 selectedChannels에 저장되어 있음)
     console.log('Selected channels:', selectedChannels);
     
+    // 트래픽 입력 화면으로 이동
+    navigateTo('traffic-input');
+}
+
+// --- Traffic Input Logic ---
+const trafficData = {}; // { channelId: { method: 'upload' | 'manual', files: [] | dataByDate: {} } }
+
+function renderTrafficInputView() {
+    const sectionsContainer = document.getElementById('traffic-input-sections');
+    if (!sectionsContainer) return;
+
+    // 선택된 채널들만 필터링
+    const selectedChannelsData = marketingChannels.filter(ch => 
+        selectedChannels.includes(ch.id)
+    );
+
+    sectionsContainer.innerHTML = selectedChannelsData.map((channel, index) => `
+        <div class="mb-6">
+            <!-- Channel Title -->
+            <h2 class="text-xl font-bold text-[#191F28] mb-2">${channel.name}</h2>
+            <p class="text-[#8B95A1] text-sm mb-4">트래픽을 입력해주세요</p>
+            
+            <!-- Upload Area -->
+            <div 
+                class="bg-white border-2 border-dashed border-[#E5E8EB] rounded-[24px] p-8 mb-3 cursor-pointer hover:border-[#3182F6] hover:bg-blue-50/30 transition-all relative overflow-hidden"
+                onclick="openFileInput('${channel.id}')"
+                id="upload-area-${channel.id}"
+            >
+                <input 
+                    type="file" 
+                    id="file-input-${channel.id}" 
+                    accept="image/*,.pdf,.xlsx,.xls" 
+                    multiple
+                    class="hidden"
+                    onchange="handleFileUpload('${channel.id}', Array.from(this.files))"
+                />
+                <div class="flex flex-col items-center justify-center text-center">
+                    <div class="w-16 h-16 bg-[#F2F4F6] rounded-full flex items-center justify-center mb-3">
+                        <i data-lucide="plus" class="w-8 h-8 text-[#8B95A1]"></i>
+                    </div>
+                    <p class="text-[#8B95A1] text-sm mb-1">사진 또는 파일을 업로드하세요</p>
+                    <p class="text-[#B0B8C1] text-xs">5장 이상 30장 이하 (최대 30장)</p>
+                </div>
+                <!-- File count display (hidden by default) -->
+                <div id="file-count-${channel.id}" class="hidden mt-4 text-center">
+                    <span class="text-sm text-[#3182F6] font-medium">
+                        <span id="uploaded-count-${channel.id}">0</span>장 업로드됨
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Manual Input Button -->
+            <button 
+                onclick="openManualInput('${channel.id}')"
+                class="w-full bg-[#3182F6] text-white font-bold py-4 rounded-xl text-base hover:bg-[#286ee6] active:scale-[0.98] transition-all"
+            >
+                직접입력
+            </button>
+            
+            <!-- Manual Input Modal (hidden by default) -->
+            <div id="manual-input-modal-${channel.id}" class="hidden fixed inset-0 z-[70] flex items-center justify-center px-6 bg-black/40 backdrop-blur-sm overflow-y-auto">
+                <div class="bg-white rounded-[32px] p-6 w-full max-w-sm my-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold text-[#191F28]">${channel.name} 트래픽 입력</h3>
+                        <button onclick="closeManualInput('${channel.id}')" class="text-[#8B95A1] hover:text-[#191F28]">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Date Selection -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-[#191F28] mb-2">날짜 선택</label>
+                        <input 
+                            type="date" 
+                            id="manual-input-date-${channel.id}"
+                            class="w-full px-4 py-3 border-2 border-[#F2F4F6] rounded-xl focus:border-[#3182F6] focus:outline-none text-[#191F28]"
+                            onchange="showManualInputFields('${channel.id}')"
+                        />
+                    </div>
+                    
+                    <!-- Input Fields (hidden by default, shown when date is selected) -->
+                    <div id="manual-input-fields-${channel.id}" class="hidden space-y-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-[#191F28] mb-2">노출률</label>
+                            <input 
+                                type="number" 
+                                id="manual-exposure-${channel.id}"
+                                placeholder="예: 10000"
+                                class="w-full px-4 py-3 border-2 border-[#F2F4F6] rounded-xl focus:border-[#3182F6] focus:outline-none text-[#191F28]"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-[#191F28] mb-2">클릭률</label>
+                            <input 
+                                type="number" 
+                                id="manual-click-${channel.id}"
+                                placeholder="예: 500"
+                                class="w-full px-4 py-3 border-2 border-[#F2F4F6] rounded-xl focus:border-[#3182F6] focus:outline-none text-[#191F28]"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-[#191F28] mb-2">전환율</label>
+                            <input 
+                                type="number" 
+                                id="manual-conversion-${channel.id}"
+                                placeholder="예: 100"
+                                step="0.01"
+                                class="w-full px-4 py-3 border-2 border-[#F2F4F6] rounded-xl focus:border-[#3182F6] focus:outline-none text-[#191F28]"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-[#191F28] mb-2">재구매율</label>
+                            <input 
+                                type="number" 
+                                id="manual-repurchase-${channel.id}"
+                                placeholder="예: 30"
+                                step="0.01"
+                                class="w-full px-4 py-3 border-2 border-[#F2F4F6] rounded-xl focus:border-[#3182F6] focus:outline-none text-[#191F28]"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-[#191F28] mb-2">투자 비용 (원)</label>
+                            <input 
+                                type="number" 
+                                id="manual-cost-${channel.id}"
+                                placeholder="예: 50000"
+                                class="w-full px-4 py-3 border-2 border-[#F2F4F6] rounded-xl focus:border-[#3182F6] focus:outline-none text-[#191F28]"
+                            />
+                        </div>
+                    </div>
+                    
+                    <!-- Saved Dates List -->
+                    <div id="saved-dates-list-${channel.id}" class="hidden mb-4 space-y-2">
+                        <p class="text-sm font-medium text-[#191F28] mb-2">입력된 날짜</p>
+                        <div id="saved-dates-${channel.id}" class="space-y-2">
+                            <!-- Dates will be listed here -->
+                        </div>
+                    </div>
+                    
+                    <button 
+                        onclick="saveManualInput('${channel.id}')"
+                        class="w-full bg-[#3182F6] text-white font-bold py-4 rounded-xl hover:bg-[#286ee6] transition-all"
+                    >
+                        저장
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Saved Data Display (hidden by default) -->
+            <div id="saved-data-${channel.id}" class="hidden mt-3 bg-green-50 border border-green-200 rounded-xl p-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-500"></i>
+                    <span class="text-sm text-green-700 font-medium">입력 완료</span>
+                    <span id="saved-value-${channel.id}" class="text-sm text-green-700 ml-auto"></span>
+                    <button onclick="clearTrafficData('${channel.id}')" class="text-green-700 hover:text-green-900">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    lucide.createIcons();
+    
+    // 기존 데이터가 있으면 표시 업데이트
+    selectedChannelsData.forEach(channel => {
+        const data = trafficData[channel.id];
+        if (data) {
+            if (data.method === 'upload') {
+                updateUploadDisplay(channel.id);
+            } else if (data.method === 'manual') {
+                updateManualInputDisplay(channel.id);
+            }
+        }
+    });
+}
+
+function openFileInput(channelId) {
+    const fileInput = document.getElementById(`file-input-${channelId}`);
+    if (fileInput) {
+        fileInput.click();
+    }
+}
+
+function handleFileUpload(channelId, files) {
+    if (!files || files.length === 0) return;
+
+    // 기존 파일이 있으면 합치기
+    const existingFiles = trafficData[channelId]?.method === 'upload' 
+        ? trafficData[channelId].files || []
+        : [];
+    
+    const allFiles = [...existingFiles, ...Array.from(files)];
+    
+    // 30장 초과 시 잘라내기
+    if (allFiles.length > 30) {
+        alert('최대 30장까지 업로드 가능합니다. 처음 30장만 저장됩니다.');
+        allFiles.splice(30);
+    }
+
+    // 5장 미만이면 경고만 하고 저장 (추가 업로드 가능)
+    if (allFiles.length < 5) {
+        // 경고는 나중에 저장 시점에 체크
+    }
+
+    // Save file data
+    trafficData[channelId] = {
+        method: 'upload',
+        files: allFiles,
+        count: allFiles.length
+    };
+
+    // Update UI
+    updateUploadDisplay(channelId);
+    lucide.createIcons();
+}
+
+function updateUploadDisplay(channelId) {
+    const uploadArea = document.getElementById(`upload-area-${channelId}`);
+    const fileCount = document.getElementById(`file-count-${channelId}`);
+    const uploadedCount = document.getElementById(`uploaded-count-${channelId}`);
+    const savedData = document.getElementById(`saved-data-${channelId}`);
+
+    const data = trafficData[channelId];
+    if (data && data.method === 'upload' && data.count > 0) {
+        if (uploadArea) {
+            uploadArea.classList.remove('border-dashed', 'border-[#E5E8EB]');
+            uploadArea.classList.add('border-[#3182F6]', 'bg-blue-50/50');
+        }
+        if (fileCount && uploadedCount) {
+            fileCount.classList.remove('hidden');
+            uploadedCount.textContent = data.count;
+        }
+        if (savedData) {
+            savedData.classList.remove('hidden');
+            const savedValue = document.getElementById(`saved-value-${channelId}`);
+            if (savedValue) {
+                savedValue.textContent = `${data.count}장 업로드됨`;
+            }
+        }
+    }
+}
+
+function removeFile(channelId) {
+    delete trafficData[channelId];
+
+    const uploadArea = document.getElementById(`upload-area-${channelId}`);
+    const fileCount = document.getElementById(`file-count-${channelId}`);
+    const savedData = document.getElementById(`saved-data-${channelId}`);
+    const fileInput = document.getElementById(`file-input-${channelId}`);
+
+    if (uploadArea) {
+        uploadArea.classList.remove('border-[#3182F6]', 'bg-blue-50/50');
+        uploadArea.classList.add('border-dashed', 'border-[#E5E8EB]');
+    }
+
+    if (fileCount) {
+        fileCount.classList.add('hidden');
+    }
+
+    if (savedData) {
+        savedData.classList.add('hidden');
+    }
+
+    if (fileInput) {
+        fileInput.value = '';
+    }
+
+    lucide.createIcons();
+}
+
+function openManualInput(channelId) {
+    const modal = document.getElementById(`manual-input-modal-${channelId}`);
+    if (modal) {
+        modal.classList.remove('hidden');
+        // 기존 데이터가 있으면 표시
+        updateManualInputDisplay(channelId);
+    }
+}
+
+function closeManualInput(channelId) {
+    const modal = document.getElementById(`manual-input-modal-${channelId}`);
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function showManualInputFields(channelId) {
+    const dateInput = document.getElementById(`manual-input-date-${channelId}`);
+    const fieldsContainer = document.getElementById(`manual-input-fields-${channelId}`);
+    
+    if (!dateInput || !fieldsContainer) return;
+    
+    if (dateInput.value) {
+        fieldsContainer.classList.remove('hidden');
+    } else {
+        fieldsContainer.classList.add('hidden');
+    }
+    
+    lucide.createIcons();
+}
+
+function saveManualInput(channelId) {
+    const dateInput = document.getElementById(`manual-input-date-${channelId}`);
+    if (!dateInput || !dateInput.value) {
+        alert('날짜를 선택해주세요');
+        return;
+    }
+
+    const exposure = document.getElementById(`manual-exposure-${channelId}`)?.value;
+    const click = document.getElementById(`manual-click-${channelId}`)?.value;
+    const conversion = document.getElementById(`manual-conversion-${channelId}`)?.value;
+    const repurchase = document.getElementById(`manual-repurchase-${channelId}`)?.value;
+    const cost = document.getElementById(`manual-cost-${channelId}`)?.value;
+
+    // 모든 필드 검증
+    if (!exposure || !click || !conversion || !repurchase || !cost) {
+        alert('모든 항목을 입력해주세요');
+        return;
+    }
+
+    // 숫자 검증
+    if (isNaN(exposure) || isNaN(click) || isNaN(conversion) || isNaN(repurchase) || isNaN(cost)) {
+        alert('올바른 수치를 입력해주세요');
+        return;
+    }
+
+    // 데이터 저장
+    if (!trafficData[channelId] || trafficData[channelId].method !== 'manual') {
+        trafficData[channelId] = {
+            method: 'manual',
+            dataByDate: {}
+        };
+    }
+
+    trafficData[channelId].dataByDate[dateInput.value] = {
+        exposure: parseInt(exposure),
+        click: parseInt(click),
+        conversion: parseFloat(conversion),
+        repurchase: parseFloat(repurchase),
+        cost: parseInt(cost)
+    };
+
+    // UI 업데이트
+    updateManualInputDisplay(channelId);
+    
+    // 입력 필드 초기화
+    dateInput.value = '';
+    document.getElementById(`manual-exposure-${channelId}`).value = '';
+    document.getElementById(`manual-click-${channelId}`).value = '';
+    document.getElementById(`manual-conversion-${channelId}`).value = '';
+    document.getElementById(`manual-repurchase-${channelId}`).value = '';
+    document.getElementById(`manual-cost-${channelId}`).value = '';
+    document.getElementById(`manual-input-fields-${channelId}`).classList.add('hidden');
+
+    lucide.createIcons();
+}
+
+function updateManualInputDisplay(channelId) {
+    const data = trafficData[channelId];
+    if (!data || data.method !== 'manual') return;
+
+    const savedDatesList = document.getElementById(`saved-dates-list-${channelId}`);
+    const savedDates = document.getElementById(`saved-dates-${channelId}`);
+    const savedData = document.getElementById(`saved-data-${channelId}`);
+
+    const dates = Object.keys(data.dataByDate);
+    
+    if (dates.length > 0) {
+        if (savedDatesList && savedDates) {
+            savedDatesList.classList.remove('hidden');
+            savedDates.innerHTML = dates.map(date => {
+                const dateData = data.dataByDate[date];
+                const dateStr = new Date(date + 'T00:00:00').toLocaleDateString('ko-KR', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                return `
+                    <div class="flex items-center justify-between bg-[#F9FAFB] rounded-xl p-3">
+                        <div>
+                            <span class="text-sm font-medium text-[#191F28]">${dateStr}</span>
+                            <span class="text-xs text-[#8B95A1] ml-2">노출 ${dateData.exposure.toLocaleString()} | 비용 ${dateData.cost.toLocaleString()}원</span>
+                        </div>
+                        <button onclick="removeManualInputDate('${channelId}', '${date}')" class="text-[#8B95A1] hover:text-[#191F28]">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        if (savedData) {
+            savedData.classList.remove('hidden');
+            const savedValue = document.getElementById(`saved-value-${channelId}`);
+            if (savedValue) {
+                savedValue.textContent = `${dates.length}일 입력됨`;
+            }
+        }
+    }
+
+    lucide.createIcons();
+}
+
+function removeManualInputDate(channelId, date) {
+    const data = trafficData[channelId];
+    if (data && data.method === 'manual' && data.dataByDate[date]) {
+        delete data.dataByDate[date];
+        
+        // 날짜가 모두 삭제되면 채널 데이터 제거
+        if (Object.keys(data.dataByDate).length === 0) {
+            delete trafficData[channelId];
+        }
+        
+        updateManualInputDisplay(channelId);
+        
+        // savedData도 업데이트
+        const savedData = document.getElementById(`saved-data-${channelId}`);
+        if (savedData && (!trafficData[channelId] || Object.keys(trafficData[channelId].dataByDate || {}).length === 0)) {
+            savedData.classList.add('hidden');
+        }
+    }
+}
+
+function clearTrafficData(channelId) {
+    delete trafficData[channelId];
+
+    const savedData = document.getElementById(`saved-data-${channelId}`);
+    const uploadArea = document.getElementById(`upload-area-${channelId}`);
+    const fileInput = document.getElementById(`file-input-${channelId}`);
+
+    if (savedData) {
+        savedData.classList.add('hidden');
+    }
+
+    if (uploadArea) {
+        uploadArea.classList.remove('opacity-50', 'border-[#3182F6]', 'bg-blue-50/50');
+        uploadArea.classList.add('border-dashed', 'border-[#E5E8EB]');
+    }
+
+    if (fileInput) {
+        fileInput.value = '';
+    }
+
+    // Reset preview
+    const preview = document.getElementById(`file-preview-${channelId}`);
+    if (preview) {
+        preview.classList.add('hidden');
+    }
+
+    lucide.createIcons();
+}
+
+function proceedToDiagnosisFromTraffic() {
+    // 모든 선택된 채널에 대해 데이터가 입력되었는지 확인
+    const allChannelsHaveData = selectedChannels.every(channelId => {
+        const data = trafficData[channelId];
+        if (!data) return false;
+        
+        if (data.method === 'upload') {
+            // 5장 이상 30장 이하 업로드 확인
+            if (!data.count || data.count < 5 || data.count > 30) {
+                return false;
+            }
+            return true;
+        } else if (data.method === 'manual') {
+            // 최소 1일 이상 입력 확인
+            const dates = Object.keys(data.dataByDate || {});
+            return dates.length > 0;
+        }
+        return false;
+    });
+
+    if (!allChannelsHaveData) {
+        alert('모든 채널의 트래픽 데이터를 입력해주세요.\n(사진: 5~30장, 직접입력: 최소 1일 이상)');
+        return;
+    }
+
+    console.log('Traffic data:', trafficData);
+
     // 진단 화면으로 이동
     navigateTo('diagnosis');
 }
