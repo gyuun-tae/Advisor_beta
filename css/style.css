@@ -1,0 +1,58 @@
+/* ==================== 전역 스타일 ==================== */
+body {
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+    background-color: #F2F4F6;
+    color: #191F28;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden; /* Prevent body scroll, handle in app-container */
+}
+
+/* ==================== 뷰 전환 ==================== */
+.view-section {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.view-section.active {
+    display: flex; /* Changed to flex to support layout */
+    flex-direction: column;
+    opacity: 1;
+}
+
+/* ==================== 애니메이션 ==================== */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ==================== 프로그레스 바 ==================== */
+.progress-bar {
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==================== 스크롤바 숨김 ==================== */
+.no-scrollbar::-webkit-scrollbar { 
+    display: none; 
+}
+
+.no-scrollbar { 
+    -ms-overflow-style: none; 
+    scrollbar-width: none; 
+}
+
+/* ==================== 하단 네비게이션 활성 상태 ==================== */
+.nav-item.active { 
+    color: #333D4B; 
+    font-weight: 700; 
+}
+
+.nav-item.active svg { 
+    stroke-width: 2.5px; 
+    color: #333D4B; 
+}
+
