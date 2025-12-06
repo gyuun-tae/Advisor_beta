@@ -9,6 +9,11 @@ function navigateTo(viewId) {
         target.classList.add('active');
     }
 
+    // Init Channels if entering for the first time
+    if (viewId === 'channels') {
+        renderChannelsView();
+    }
+
     // Init Diagnosis if entering for the first time or reset
     if (viewId === 'diagnosis') {
         if(diagnosisState.step === 'idle') {
@@ -24,12 +29,136 @@ function navigateTo(viewId) {
     const activeNav = document.querySelector(`.nav-item[data-target="${viewId}"]`);
     if (activeNav) {
         activeNav.classList.add('active');
-    } else if (viewId === 'diagnosis') {
-        // If in diagnosis, maybe keep 'home' active or none. Let's keep none for clarity or Home.
+    } else if (viewId === 'diagnosis' || viewId === 'channels') {
+        // If in diagnosis or channels, maybe keep 'home' active or none. Let's keep none for clarity or Home.
         // Keeping none emphasizes fullscreen mode.
     }
     
     lucide.createIcons();
+}
+
+// --- Marketing Channels Logic ---
+const selectedChannels = [];
+
+const marketingChannels = [
+    { 
+        id: 'coupang-eats', 
+        name: '쿠팡이츠', 
+        logo: '🍽️',
+        color: '#FF6B00'
+    },
+    { 
+        id: 'baemin', 
+        name: '배달의 민족', 
+        logo: '🛵',
+        color: '#00C73C'
+    },
+    { 
+        id: 'yogiyo', 
+        name: '요기요', 
+        logo: '🍔',
+        color: '#FF6B6B'
+    },
+    { 
+        id: 'naver-place', 
+        name: '네이버 플레이스', 
+        logo: '📍',
+        color: '#03C75A'
+    },
+    { 
+        id: 'naver-powerlink', 
+        name: '네이버 파워링크', 
+        logo: '🔗',
+        color: '#03C75A'
+    }
+];
+
+function renderChannelsView() {
+    const channelsList = document.getElementById('channels-list');
+    if (!channelsList) return;
+
+    channelsList.innerHTML = marketingChannels.map(channel => `
+        <div 
+            onclick="toggleChannel('${channel.id}')" 
+            id="channel-${channel.id}"
+            class="bg-white p-5 rounded-[24px] shadow-sm border-2 border-[#F2F4F6] cursor-pointer transition-all active:scale-[0.98] group hover:border-[#3182F6]/30"
+        >
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 rounded-[16px] bg-[#F9FAFB] flex items-center justify-center text-2xl border border-[#F2F4F6] group-hover:bg-blue-50/50 transition-colors">
+                        ${channel.logo}
+                    </div>
+                    <span class="text-lg font-bold text-[#191F28]">${channel.name}</span>
+                </div>
+                <div class="w-6 h-6 rounded-full border-2 border-[#E5E8EB] flex items-center justify-center transition-all" id="check-${channel.id}">
+                    <i data-lucide="check" class="w-4 h-4 text-white hidden" id="check-icon-${channel.id}"></i>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    lucide.createIcons();
+    
+    // Reset continue button state
+    const continueBtn = document.getElementById('channels-continue-btn');
+    if (continueBtn && selectedChannels.length === 0) {
+        continueBtn.classList.remove('bg-[#3182F6]', 'text-white');
+        continueBtn.classList.add('bg-[#E5E8EB]', 'text-[#B0B8C1]');
+        continueBtn.disabled = true;
+    }
+}
+
+function toggleChannel(channelId) {
+    const index = selectedChannels.indexOf(channelId);
+    const channelCard = document.getElementById(`channel-${channelId}`);
+    const checkBox = document.getElementById(`check-${channelId}`);
+    const checkIcon = document.getElementById(`check-icon-${channelId}`);
+    const continueBtn = document.getElementById('channels-continue-btn');
+
+    if (!channelCard || !checkBox || !checkIcon) return;
+
+    if (index === -1) {
+        // 선택 추가
+        selectedChannels.push(channelId);
+        channelCard.classList.remove('border-[#F2F4F6]');
+        channelCard.classList.add('border-[#3182F6]', 'bg-blue-50/30');
+        checkBox.classList.remove('border-[#E5E8EB]');
+        checkBox.classList.add('border-[#3182F6]', 'bg-[#3182F6]');
+        checkIcon.classList.remove('hidden');
+    } else {
+        // 선택 제거
+        selectedChannels.splice(index, 1);
+        channelCard.classList.remove('border-[#3182F6]', 'bg-blue-50/30');
+        channelCard.classList.add('border-[#F2F4F6]');
+        checkBox.classList.remove('border-[#3182F6]', 'bg-[#3182F6]');
+        checkBox.classList.add('border-[#E5E8EB]');
+        checkIcon.classList.add('hidden');
+    }
+
+    // 다음 버튼 활성화/비활성화
+    if (continueBtn) {
+        if (selectedChannels.length > 0) {
+            continueBtn.classList.remove('bg-[#E5E8EB]', 'text-[#B0B8C1]');
+            continueBtn.classList.add('bg-[#3182F6]', 'text-white');
+            continueBtn.disabled = false;
+        } else {
+            continueBtn.classList.remove('bg-[#3182F6]', 'text-white');
+            continueBtn.classList.add('bg-[#E5E8EB]', 'text-[#B0B8C1]');
+            continueBtn.disabled = true;
+        }
+    }
+
+    lucide.createIcons();
+}
+
+function proceedToDiagnosis() {
+    if (selectedChannels.length === 0) return;
+    
+    // 선택된 채널 저장 (나중에 진단에 사용 가능)
+    console.log('Selected channels:', selectedChannels);
+    
+    // 진단 화면으로 이동
+    navigateTo('diagnosis');
 }
 
 // --- Diagnosis Logic (Integrated) ---

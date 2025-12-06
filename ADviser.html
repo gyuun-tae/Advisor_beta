@@ -54,7 +54,7 @@
                 <!-- Main Actions -->
                 <div class="px-5">
                     <!-- Diagnosis Entry Card (HERO) -->
-                    <div onclick="navigateTo('diagnosis')" class="bg-white p-6 rounded-[28px] shadow-sm relative overflow-hidden group active:scale-[0.98] transition-transform cursor-pointer mb-4 border border-[#F2F4F6]">
+                    <div onclick="navigateTo('channels')" class="bg-white p-6 rounded-[28px] shadow-sm relative overflow-hidden group active:scale-[0.98] transition-transform cursor-pointer mb-4 border border-[#F2F4F6]">
                         <div class="relative z-10">
                             <div class="flex items-center gap-2 mb-2">
                                 <span class="bg-blue-50 text-[#3182F6] text-[10px] font-bold px-2 py-1 rounded-full">AI 분석</span>
@@ -89,6 +89,40 @@
                             <span class="text-sm font-medium text-[#4E5968]">신메뉴 사진 업로드</span>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW: MARKETING CHANNELS ==================== -->
+        <section id="view-channels" class="view-section h-full bg-[#F2F4F6]">
+            <div class="flex-1 overflow-y-auto no-scrollbar pb-24">
+                <!-- Header -->
+                <header class="bg-white px-6 pt-12 pb-6 rounded-b-[32px] shadow-sm mb-6">
+                    <button onclick="navigateTo('home')" class="p-2 -ml-2 mb-4 text-[#333D4B]">
+                        <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                    </button>
+                    <h1 class="text-2xl font-bold text-[#191F28] mb-2">
+                        사장님이 사용하고 계신<br>
+                        <span class="text-[#3182F6]">마케팅 채널</span>을 모두 선택해주세요
+                    </h1>
+                    <p class="text-[#8B95A1] text-sm mt-2">정확한 분석을 위해 필요해요</p>
+                </header>
+
+                <!-- Channel Selection Cards -->
+                <div class="px-5">
+                    <div id="channels-list" class="space-y-3 mb-6">
+                        <!-- Channel cards will be rendered here by JS -->
+                    </div>
+
+                    <!-- Continue Button -->
+                    <button 
+                        id="channels-continue-btn" 
+                        onclick="proceedToDiagnosis()" 
+                        class="w-full bg-[#E5E8EB] text-[#B0B8C1] font-bold py-4 rounded-xl text-lg transition-all disabled:cursor-not-allowed"
+                        disabled
+                    >
+                        다음 단계로
+                    </button>
                 </div>
             </div>
         </section>
