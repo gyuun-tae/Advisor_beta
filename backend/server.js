@@ -7,6 +7,8 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/auth');
+const { sequelize, testConnection } = require('./config/database');
+const User = require('./models/User');
 
 // 환경 변수 로드
 dotenv.config();
@@ -44,9 +46,30 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 서버 시작
-app.listen(PORT, () => {
-    console.log(`🚀 ADViser API Server is running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
-});
+// 데이터베이스 초기화 및 서버 시작
+const startServer = async () => {
+    try {
+        // 데이터베이스 연결 테스트
+        const isConnected = await testConnection();
+        if (!isConnected) {
+            console.error('❌ 데이터베이스 연결 실패. 서버를 시작할 수 없습니다.');
+            process.exit(1);
+        }
+
+        // 데이터베이스 테이블 생성 (없으면 생성)
+        await sequelize.sync({ alter: false }); // alter: true는 프로덕션에서 주의
+        console.log('✅ 데이터베이스 테이블 동기화 완료');
+
+        // 서버 시작
+        app.listen(PORT, () => {
+            console.log(`🚀 ADViser API Server is running on port ${PORT}`);
+            console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
+        });
+    } catch (error) {
+        console.error('❌ 서버 시작 실패:', error);
+        process.exit(1);
+    }
+};
+
+startServer();
 

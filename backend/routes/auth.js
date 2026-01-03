@@ -4,23 +4,11 @@
  */
 
 const express = require('express');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
+const User = require('../models/User');
 
-// 임시 사용자 데이터베이스 (실제로는 DB 사용)
-const users = [
-    {
-        id: 1,
-        email: 'test@adviser.com',
-        password: '$2b$10$rQZ8K5J5K5K5K5K5K5K5Ku5K5K5K5K5K5K5K5K5K5K5K5K5K5K5K', // password: test123
-        name: '김사장',
-        businessType: '음식점',
-        region: '서울'
-    }
-];
-
-// JWT 시크릿 키 (실제로는 환경 변수로 관리)
+// JWT 시크릿 키
 const JWT_SECRET = process.env.JWT_SECRET || 'adviser-secret-key-change-in-production';
 
 /**
@@ -38,21 +26,22 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // 사용자 찾기
-        const user = users.find(u => u.email === email);
+        // 사용자 찾기 (비밀번호 포함)
+        const user = await User.findOne({ 
+            where: { email },
+            attributes: { include: ['password'] } // 비밀번호도 포함하여 가져오기
+        });
+
         if (!user) {
             return res.status(401).json({ 
                 message: '이메일 또는 비밀번호가 올바르지 않습니다.' 
             });
         }
 
-        // 비밀번호 확인 (실제로는 해시된 비밀번호와 비교)
-        // 데모용: test@adviser.com / test123
-        const isValidPassword = email === 'test@adviser.com' && password === 'test123';
+        // 비밀번호 확인
+        const isValidPassword = await user.validatePassword(password);
         
         if (!isValidPassword) {
-            // 실제로는 bcrypt.compare 사용
-            // const isValidPassword = await bcrypt.compare(password, user.password);
             return res.status(401).json({ 
                 message: '이메일 또는 비밀번호가 올바르지 않습니다.' 
             });
@@ -68,19 +57,11 @@ router.post('/login', async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        // 사용자 정보 반환 (비밀번호 제외)
-        const userInfo = {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            businessType: user.businessType,
-            region: user.region
-        };
-
+        // 사용자 정보 반환 (비밀번호 제외 - toJSON 메서드가 자동 처리)
         res.json({
             message: '로그인 성공',
             token,
-            user: userInfo
+            user: user.toJSON()
         });
     } catch (error) {
         console.error('Login error:', error);
@@ -94,7 +75,7 @@ router.post('/login', async (req, res) => {
  * GET /api/auth/validate
  * 토큰 검증
  */
-router.get('/validate', (req, res) => {
+router.get('/validate', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
         
@@ -110,25 +91,17 @@ router.get('/validate', (req, res) => {
         const decoded = jwt.verify(token, JWT_SECRET);
         
         // 사용자 찾기
-        const user = users.find(u => u.id === decoded.userId);
+        const user = await User.findByPk(decoded.userId);
         if (!user) {
             return res.status(401).json({ 
                 message: '사용자를 찾을 수 없습니다.' 
             });
         }
 
-        // 사용자 정보 반환
-        const userInfo = {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            businessType: user.businessType,
-            region: user.region
-        };
-
+        // 사용자 정보 반환 (비밀번호 제외)
         res.json({
             valid: true,
-            user: userInfo
+            user: user.toJSON()
         });
     } catch (error) {
         if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
@@ -159,28 +132,29 @@ router.post('/register', async (req, res) => {
             });
         }
 
+        // 비밀번호 길이 검증
+        if (password.length < 6) {
+            return res.status(400).json({ 
+                message: '비밀번호는 최소 6자 이상이어야 합니다.' 
+            });
+        }
+
         // 이메일 중복 확인
-        const existingUser = users.find(u => u.email === email);
+        const existingUser = await User.findOne({ where: { email } });
         if (existingUser) {
             return res.status(409).json({ 
                 message: '이미 등록된 이메일입니다.' 
             });
         }
 
-        // 비밀번호 해싱
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // 새 사용자 생성
-        const newUser = {
-            id: users.length + 1,
+        // 새 사용자 생성 (비밀번호는 모델의 beforeCreate 훅에서 자동 해싱)
+        const newUser = await User.create({
             email,
-            password: hashedPassword,
+            password, // 모델에서 자동으로 해싱됨
             name,
             businessType: businessType || '',
             region: region || ''
-        };
-
-        users.push(newUser);
+        });
 
         // JWT 토큰 생성
         const token = jwt.sign(
@@ -192,21 +166,28 @@ router.post('/register', async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        // 사용자 정보 반환
-        const userInfo = {
-            id: newUser.id,
-            email: newUser.email,
-            name: newUser.name,
-            businessType: newUser.businessType,
-            region: newUser.region
-        };
-
+        // 사용자 정보 반환 (비밀번호 제외)
         res.status(201).json({
             message: '회원가입 성공',
             token,
-            user: userInfo
+            user: newUser.toJSON()
         });
     } catch (error) {
+        // Sequelize 유효성 검사 오류 처리
+        if (error.name === 'SequelizeValidationError') {
+            const messages = error.errors.map(e => e.message).join(', ');
+            return res.status(400).json({ 
+                message: messages 
+            });
+        }
+
+        // 중복 키 오류 처리
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({ 
+                message: '이미 등록된 이메일입니다.' 
+            });
+        }
+
         console.error('Registration error:', error);
         res.status(500).json({ 
             message: '회원가입 중 오류가 발생했습니다.' 
