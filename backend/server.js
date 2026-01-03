@@ -17,10 +17,37 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 미들웨어 설정
-app.use(cors({
-    origin: ['http://localhost:8080', 'http://127.0.0.1:5500', 'file://'],
+// CORS 설정: 개발 환경에서는 localhost/127.0.0.1의 모든 포트 허용
+const corsOptions = {
+    origin: function (origin, callback) {
+        // 개발 환경
+        if (process.env.NODE_ENV !== 'production') {
+            // localhost나 127.0.0.1의 모든 포트 허용
+            if (!origin || 
+                origin.startsWith('http://localhost:') || 
+                origin.startsWith('http://127.0.0.1:') ||
+                origin === 'file://') {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        } else {
+            // 프로덕션 환경에서는 특정 origin만 허용
+            const allowedOrigins = [
+                'https://yourdomain.com',
+                // 프로덕션 도메인 추가
+            ];
+            if (allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        }
+    },
     credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
